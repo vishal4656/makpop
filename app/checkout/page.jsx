@@ -30,8 +30,6 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const { isSignedIn } = useAuth()
   const { user } = useUser();
-  console.log(user,'bkjhvvhjgg');
-  
 
   const [formData, setFormData] = useState({
     name: user?.fullName || "",

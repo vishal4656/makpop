@@ -25,7 +25,7 @@ const CustomProductCard = ({ product }) => {
     isSale = false,
     description = "Roasted premium makhana snack.",
   } = product;
-  console.log(image, "ssds");
+  //console.log(image, "ssds");
    const addItem = useCartStore((state) => state.addItem)
 
   // Logic: Use provided slug, OR generate a URL-friendly slug from the name
@@ -53,7 +53,7 @@ const CustomProductCard = ({ product }) => {
     // e.stopPropagation();
     addItem(product, 1);
     // TODO: Connect to your global Cart Context here
-    console.log(`Added ${quantity} of ${name} (Slug: ${productSlug}) to cart`);
+    //console.log(`Added ${quantity} of ${name} (Slug: ${productSlug}) to cart`);
   };
 
   return (

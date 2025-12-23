@@ -42,7 +42,7 @@ const FreeShippingBar = ({ current, target = 299 }) => {
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, getTotal } = useCartStore()
-  console.log(items, 'items');
+ 
   const {isSignedIn} = useAuth()
 
   const total = getTotal()

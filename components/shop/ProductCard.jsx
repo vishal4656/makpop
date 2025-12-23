@@ -9,7 +9,7 @@ import { formatPrice } from "@/lib/utils"
 import { useCartStore } from "@/lib/store"
 
 export default function ProductCard({ product }) {
-  console.log(product,'prodect');
+  //console.log(product,'prodect');
   
   const addItem = useCartStore((state) => state.addItem)
 
