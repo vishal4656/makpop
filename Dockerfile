@@ -14,7 +14,7 @@ COPY . .
 # Build with secrets
 # Note: Ensure your secret is actually named "env" in your docker build command
 RUN --mount=type=secret,id=env,dst=/run/secrets/.env \
-    export $(cat /run/secrets/.env | xargs) && \
+    cp /run/secrets/.env .env.production && \
     npm run build
 
 # Step 3: Production Runner
