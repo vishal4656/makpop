@@ -23,7 +23,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Build & Push using the ENV_FILE secret for build-time variables
+      # Build & Push: We push BOTH 'latest' (for reference) and 'github.sha' (for deployment)
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -32,6 +32,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:${{ github.sha }}
+          # This passes your ENV_FILE secret to the Dockerfile
           secrets: |
             "env=${{ secrets.ENV_FILE }}"
 
@@ -52,25 +53,26 @@ jobs:
             echo "Logging into Docker Hub..."
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
-            # 2. Pull the fresh image
-            echo "Pulling latest image..."
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
+            # 2. Pull the NEW specific version (Bypasses caching issues)
+            echo "Pulling image version: ${{ github.sha }}..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:${{ github.sha }}
 
-            # 3. Stop and Remove old container (ignore errors if it doesn't exist)
+            # 3. Stop and Remove the OLD container
             echo "Stopping old container..."
             docker stop makpop || true
             docker rm makpop || true
 
-            # 4. Run the new container
-            # Uses dynamic path /home/${USER}/.env to match your specific server user (ubuntu/ec2-user)
+            # 4. Run the NEW Container using the Commit SHA
             echo "Starting new container..."
             docker run -d \
               --name makpop \
               --env-file /home/${{ secrets.SERVER_USER }}/.env \
               -p 3000:3000 \
               --restart unless-stopped \
-              ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:${{ github.sha }}
 
-            # 5. Clean up unused images to save disk space
-            echo "Cleaning up..."
-            docker image prune -f
+            # 5. AGGRESSIVE CLEANUP
+            # -a: Remove all unused images (including the previous version we just stopped)
+            # -f: Force without confirmation
+            echo "Cleaning up old images..."
+            docker image prune -af
