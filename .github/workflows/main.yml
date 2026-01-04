@@ -14,13 +14,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Step 3: Build using the secret (Crucial for Frontend)
+      # Build & Push using the ENV_FILE secret for build-time variables
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -29,7 +32,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:${{ github.sha }}
-          # 👇 This passes the keys to the Dockerfile --mount command
           secrets: |
             "env=${{ secrets.ENV_FILE }}"
 
@@ -46,20 +48,29 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # Login & Pull
+            # 1. Login to Docker Hub on the server
+            echo "Logging into Docker Hub..."
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+
+            # 2. Pull the fresh image
+            echo "Pulling latest image..."
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
 
-            # Cleanup old container
+            # 3. Stop and Remove old container (ignore errors if it doesn't exist)
+            echo "Stopping old container..."
             docker stop makpop || true
             docker rm makpop || true
 
-            # Run using the EC2 .env file (For Backend Keys)
+            # 4. Run the new container
+            # Uses dynamic path /home/${USER}/.env to match your specific server user (ubuntu/ec2-user)
+            echo "Starting new container..."
             docker run -d \
               --name makpop \
-              --env-file /home/ubuntu/.env \
+              --env-file /home/${{ secrets.SERVER_USER }}/.env \
               -p 3000:3000 \
               --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/makpop-makhana:latest
-            
+
+            # 5. Clean up unused images to save disk space
+            echo "Cleaning up..."
             docker image prune -f
