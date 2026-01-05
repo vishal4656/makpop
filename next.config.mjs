@@ -9,10 +9,10 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Add this new entry below:
+      // 👇 Add this for Google Profile Pictures
       {
         protocol: 'https',
-        hostname: 'i.ibb.co',
+        hostname: '*.googleusercontent.com',
         port: '',
         pathname: '/**',
       },

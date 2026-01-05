@@ -1,18 +1,29 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { formatPrice } from "@/lib/utils"
-import { useCartStore } from "@/lib/store"
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Truck } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useAuth } from "@clerk/nextjs"
+import Link from "next/link";
+import { useState, useEffect } from "react"; // <--- Added useState, useEffect
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { formatPrice } from "@/lib/utils";
+import { useCartStore } from "@/lib/store";
+import {
+  Minus,
+  Plus,
+  Trash2,
+  ShoppingBag,
+  ArrowRight,
+  Truck,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+// --- 1. Remove Clerk, Add Firebase ---
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/firebase";
 
 // Helper component for the free shipping bar
 const FreeShippingBar = ({ current, target = 299 }) => {
-  const progress = Math.min((current / target) * 100, 100)
-  const remaining = target - current
+  const progress = Math.min((current / target) * 100, 100);
+  const remaining = target - current;
 
   return (
     <div className="bg-white p-4 rounded-xl border border-green-100 shadow-sm mb-6">
@@ -22,10 +33,19 @@ const FreeShippingBar = ({ current, target = 299 }) => {
         </div>
         {remaining > 0 ? (
           <span className="text-charcoal-700">
-            Add <span className="font-bold text-green-700">{formatPrice(remaining)}</span> more for <span className="text-green-700 font-bold uppercase">Free Shipping</span>
+            Add{" "}
+            <span className="font-bold text-green-700">
+              {formatPrice(remaining)}
+            </span>{" "}
+            more for{" "}
+            <span className="text-green-700 font-bold uppercase">
+              Free Shipping
+            </span>
           </span>
         ) : (
-          <span className="text-green-700 font-bold">You've unlocked Free Shipping! 🎉</span>
+          <span className="text-green-700 font-bold">
+            You've unlocked Free Shipping! 🎉
+          </span>
         )}
       </div>
       <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
@@ -33,19 +53,31 @@ const FreeShippingBar = ({ current, target = 299 }) => {
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
           transition={{ duration: 1, ease: "easeOut" }}
-          className={`h-full ${remaining > 0 ? "bg-green-500" : "bg-gradient-to-r from-green-500 to-emerald-400"}`}
+          className={`h-full ${
+            remaining > 0
+              ? "bg-green-500"
+              : "bg-gradient-to-r from-green-500 to-emerald-400"
+          }`}
         />
       </div>
     </div>
-  )
-}
+  );
+};
 
 export default function CartPage() {
-  const { items, updateQuantity, removeItem, getTotal } = useCartStore()
- 
-  const {isSignedIn} = useAuth()
+  const { items, updateQuantity, removeItem, getTotal } = useCartStore();
 
-  const total = getTotal()
+  // --- 2. Setup Firebase User State ---
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const total = getTotal();
 
   if (items.length === 0) {
     return (
@@ -57,17 +89,22 @@ export default function CartPage() {
         >
           <ShoppingBag className="h-10 w-10 text-green-800" />
         </motion.div>
-        <h2 className="text-3xl font-bold text-green-950 mb-3">Your cart is empty</h2>
+        <h2 className="text-3xl font-bold text-green-950 mb-3">
+          Your cart is empty
+        </h2>
         <p className="text-charcoal-600 mb-8 max-w-md">
           Looks like you haven't discovered our crunchy goodness yet.
         </p>
         <Link href="/shop">
-          <Button size="lg" className="bg-green-900 hover:bg-green-800 text-white px-8 py-6 rounded-full text-lg shadow-lg hover:shadow-xl transition-all hover:scale-105">
+          <Button
+            size="lg"
+            className="bg-green-900 hover:bg-green-800 text-white px-8 py-6 rounded-full text-lg shadow-lg hover:shadow-xl transition-all hover:scale-105"
+          >
             Start Shopping <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </Link>
       </div>
-    )
+    );
   }
 
   return (
@@ -78,13 +115,15 @@ export default function CartPage() {
           animate={{ y: 0, opacity: 1 }}
           className="text-3xl md:text-4xl font-bold text-green-950 mb-8"
         >
-          Shopping Cart <span className="text-lg font-normal text-charcoal-500 ml-2">({items.length} items)</span>
+          Shopping Cart{" "}
+          <span className="text-lg font-normal text-charcoal-500 ml-2">
+            ({items.length} items)
+          </span>
         </motion.h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
           {/* Cart Items Column */}
           <div className="lg:col-span-2 space-y-6">
-
             <FreeShippingBar current={total} />
 
             <div className="space-y-4">
@@ -115,8 +154,12 @@ export default function CartPage() {
                           <div className="flex-1 flex flex-col justify-between">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h3 className="font-bold text-lg text-green-950 mb-1">{item.name}</h3>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-500 bg-gray-100 px-2 py-0.5 rounded w-fit">{item.weight}</p>
+                                <h3 className="font-bold text-lg text-green-950 mb-1">
+                                  {item.name}
+                                </h3>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-500 bg-gray-100 px-2 py-0.5 rounded w-fit">
+                                  {item.weight}
+                                </p>
                               </div>
                               <button
                                 onClick={() => removeItem(item.id)}
@@ -131,15 +174,24 @@ export default function CartPage() {
                               {/* Quantity Controls */}
                               <div className="flex items-center bg-gray-50 rounded-lg border border-gray-200 w-fit">
                                 <button
-                                  onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
+                                  onClick={() =>
+                                    updateQuantity(
+                                      item.id,
+                                      Math.max(1, item.quantity - 1)
+                                    )
+                                  }
                                   className="w-10 h-10 flex items-center justify-center text-charcoal-600 hover:text-green-700 hover:bg-white rounded-l-lg transition-colors"
                                   disabled={item.quantity <= 1}
                                 >
                                   <Minus className="h-4 w-4" />
                                 </button>
-                                <span className="w-8 text-center font-bold text-sm select-none">{item.quantity}</span>
+                                <span className="w-8 text-center font-bold text-sm select-none">
+                                  {item.quantity}
+                                </span>
                                 <button
-                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  onClick={() =>
+                                    updateQuantity(item.id, item.quantity + 1)
+                                  }
                                   className="w-10 h-10 flex items-center justify-center text-charcoal-600 hover:text-green-700 hover:bg-white rounded-r-lg transition-colors"
                                 >
                                   <Plus className="h-4 w-4" />
@@ -148,9 +200,13 @@ export default function CartPage() {
 
                               {/* Price */}
                               <div className="text-right">
-                                <p className="text-xl font-bold text-green-900">{formatPrice(item.price * item.quantity)}</p>
+                                <p className="text-xl font-bold text-green-900">
+                                  {formatPrice(item.price * item.quantity)}
+                                </p>
                                 {item.quantity > 1 && (
-                                  <p className="text-xs text-gray-400">{formatPrice(item.price)} each</p>
+                                  <p className="text-xs text-gray-400">
+                                    {formatPrice(item.price)} each
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -174,12 +230,16 @@ export default function CartPage() {
               >
                 <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm">
                   <CardContent className="p-6 md:p-8 space-y-6">
-                    <h2 className="text-xl font-bold text-green-950 pb-4 border-b border-gray-100">Order Summary</h2>
+                    <h2 className="text-xl font-bold text-green-950 pb-4 border-b border-gray-100">
+                      Order Summary
+                    </h2>
 
                     <div className="space-y-3">
                       <div className="flex justify-between text-charcoal-600">
                         <span>Subtotal</span>
-                        <span className="font-semibold text-charcoal-900">{formatPrice(total)}</span>
+                        <span className="font-semibold text-charcoal-900">
+                          {formatPrice(total)}
+                        </span>
                       </div>
                       <div className="flex justify-between text-charcoal-600">
                         <span>Shipping</span>
@@ -192,26 +252,48 @@ export default function CartPage() {
                     </div>
 
                     <div className="flex justify-between items-center pt-4 border-t border-gray-100">
-                      <span className="text-lg font-bold text-green-950">Total</span>
+                      <span className="text-lg font-bold text-green-950">
+                        Total
+                      </span>
                       <span className="text-2xl font-bold text-green-900">
                         {formatPrice(total + (total >= 299 ? 0 : 49))}
                       </span>
                     </div>
                     <div className="space-y-3 pt-4">
-                      <Link href={isSignedIn?'/checkout':'/sign-in'}>
-                        <Button size="lg" className="w-full bg-green-900 hover:bg-green-800 text-white font-bold py-6 text-lg rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95">
+                      {/* --- 3. Use 'user' state to check login status --- */}
+                      <Link href={user ? "/checkout" : "/sign-in"}>
+                        <Button
+                          size="lg"
+                          className="w-full bg-green-900 hover:bg-green-800 text-white font-bold py-6 text-lg rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95"
+                        >
                           Checkout Now
                         </Button>
                       </Link>
                       <Link href="/shop" className="block">
-                        <Button variant="ghost" size="lg" className="w-full hover:bg-gray-50 text-charcoal-600">
+                        <Button
+                          variant="ghost"
+                          size="lg"
+                          className="w-full hover:bg-gray-50 text-charcoal-600"
+                        >
                           Continue Shopping
                         </Button>
                       </Link>
                     </div>
 
                     <div className="flex items-center justify-center gap-2 mt-2 text-xs text-gray-400">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        ></path>
+                      </svg>
                       Secure Checkout
                     </div>
                   </CardContent>
@@ -222,5 +304,5 @@ export default function CartPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

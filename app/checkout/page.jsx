@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -16,37 +16,73 @@ import {
   User,
   Smartphone,
   Mail,
-  CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Loader2,
 } from "lucide-react";
-import { useAuth, useUser } from "@clerk/nextjs";
-import { getAddress } from "@/api/checkout";
-import { clerkClient } from "@clerk/nextjs/server";
+
+// --- Firebase Imports ---
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/firebase";
 
 export default function CheckoutPage() {
   const { items, getTotal, clearCart } = useCartStore();
   const router = useRouter();
+
+  // State
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("card");
-  const { isSignedIn } = useAuth()
-  const { user } = useUser();
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [user, setUser] = useState(null);
+  
+  // Start with loading TRUE so we don't redirect immediately
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [formData, setFormData] = useState({
-    name: user?.fullName || "",
-    email: user?.primaryEmailAddress?.emailAddress || "",
-    phone: user?.phoneNumbers[0]?.phoneNumber || "",
+    name: "",
+    email: "",
+    phone: "",
     address: "",
     city: "",
     pincode: "",
     state: "",
   });
 
-  // Redirect if cart is empty
+  // --- 1. Listen for Auth Changes (Just update state) ---
   useEffect(() => {
-    if (items.length === 0) {
-      router.push("/cart");
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      console.log("Auth State Changed:", currentUser); // Debugging Log
+      
+      if (currentUser) {
+        setUser(currentUser);
+        // Pre-fill form if data is missing
+        setFormData((prev) => ({
+          ...prev,
+          name: prev.name || currentUser.displayName || "",
+          email: prev.email || currentUser.email || "",
+          phone: prev.phone || currentUser.phoneNumber || "",
+        }));
+      } else {
+        setUser(null);
+      }
+      
+      // Stop loading once we know the state (logged in OR logged out)
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // --- 2. Handle Redirects (Only after loading is done) ---
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        // Only redirect if loading is finished AND no user found
+        router.push("/sign-in");
+      } else if (items.length === 0) {
+        // Redirect if cart is empty
+        router.push("/cart");
+      }
     }
-  }, [items, router]);
+  }, [authLoading, user, items, router]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -56,7 +92,6 @@ export default function CheckoutPage() {
     e.preventDefault();
     setIsProcessing(true);
 
-    // Simulate API delay
     setTimeout(() => {
       alert("Order placed successfully! Welcome to the Makpop family.");
       clearCart();
@@ -64,10 +99,22 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }, 2000);
   };
-  useEffect(() => {
-    if (!isSignedIn) { router.push('/sign-in') }
-  }, [])
 
+  // --- Loading Spinner (Shows while checking Firebase) ---
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 animate-spin text-green-900" />
+          <p className="text-sm text-gray-500 font-medium">Verifying User...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Prevent rendering the rest if no user (wait for redirect)
+  if (!user) return null;
+  // Prevent rendering if empty cart (wait for redirect)
   if (items.length === 0) return null;
 
   const total = getTotal();
@@ -76,7 +123,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="bg-[#F5F5F7] min-h-screen pb-20">
-
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -95,7 +141,7 @@ export default function CheckoutPage() {
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-
+          
           {/* --- LEFT COLUMN: FORMS --- */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -103,7 +149,7 @@ export default function CheckoutPage() {
             className="lg:col-span-7 space-y-8"
           >
             <form id="checkout-form" onSubmit={handleSubmit} className="space-y-8">
-
+              
               {/* 1. Contact Info */}
               <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                 <h2 className="text-lg font-bold text-green-950 mb-6 flex items-center gap-2">
@@ -194,30 +240,31 @@ export default function CheckoutPage() {
                 </div>
               </section>
 
-              {/* 3. Payment Method (Visual) */}
+              {/* 3. Payment Method */}
               <section className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                 <h2 className="text-lg font-bold text-green-950 mb-6 flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-800 text-sm">3</div>
                   Payment Method
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* <div 
-                     onClick={() => setPaymentMethod("card")}
-                     className={`cursor-pointer p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${paymentMethod === "card" ? "border-green-600 bg-green-50/50" : "border-gray-100 hover:border-gray-200"}`}
-                   >
-                     <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === "card" ? "border-green-600" : "border-gray-300"}`}>
-                        {paymentMethod === "card" && <div className="w-2.5 h-2.5 bg-green-600 rounded-full" />}
-                     </div>
-                     <CreditCard className="w-5 h-5 text-gray-600" />
-                     <span className="font-medium text-gray-700">Card / UPI</span>
-                   </div> */}
-
                   <div
                     onClick={() => setPaymentMethod("cod")}
-                    className={`cursor-pointer p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${paymentMethod === "cod" ? "border-green-600 bg-green-50/50" : "border-gray-100 hover:border-gray-200"}`}
+                    className={`cursor-pointer p-4 rounded-xl border-2 flex items-center gap-3 transition-all ${
+                      paymentMethod === "cod"
+                        ? "border-green-600 bg-green-50/50"
+                        : "border-gray-100 hover:border-gray-200"
+                    }`}
                   >
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${paymentMethod === "cod" ? "border-green-600" : "border-gray-300"}`}>
-                      {paymentMethod === "cod" && <div className="w-2.5 h-2.5 bg-green-600 rounded-full" />}
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        paymentMethod === "cod"
+                          ? "border-green-600"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      {paymentMethod === "cod" && (
+                        <div className="w-2.5 h-2.5 bg-green-600 rounded-full" />
+                      )}
                     </div>
                     <Truck className="w-5 h-5 text-gray-600" />
                     <span className="font-medium text-gray-700">Cash on Delivery</span>
@@ -228,7 +275,7 @@ export default function CheckoutPage() {
             </form>
           </motion.div>
 
-          {/* --- RIGHT COLUMN: SUMMARY (Sticky) --- */}
+          {/* --- RIGHT COLUMN: SUMMARY --- */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -246,22 +293,29 @@ export default function CheckoutPage() {
                   {items.map((item) => (
                     <div key={item.id} className="flex gap-4">
                       <div className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
-                        {/* Ensure image path is valid string */}
-                        <img
-                          src={item.image.src.src}
-                          alt={item.image.src.src}
-                          className="object-cover w-full h-full"
-                        />
+                        {item.image?.src?.src ? (
+                          <img
+                            src={item.image.src.src}
+                            alt={item.name}
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                            No Img
+                          </div>
+                        )}
                         <div className="absolute bottom-0 right-0 bg-gray-900 text-white text-[10px] px-1.5 py-0.5 rounded-tl-md font-bold">
                           x{item.quantity}
                         </div>
                       </div>
                       <div className="flex-1 flex flex-col justify-center">
                         <h4 className="font-semibold text-gray-900 text-sm">{item.name}</h4>
-                        <p className="text-xs text-gray-500">{item.weight || '100g'}</p>
+                        <p className="text-xs text-gray-500">{item.weight || "100g"}</p>
                       </div>
                       <div className="flex items-center">
-                        <p className="font-bold text-gray-900">{formatPrice(item.price * item.quantity)}</p>
+                        <p className="font-bold text-gray-900">
+                          {formatPrice(item.price * item.quantity)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -312,11 +366,9 @@ export default function CheckoutPage() {
                     <Lock className="w-3 h-3" /> All transactions are secure and encrypted.
                   </p>
                 </div>
-
               </div>
             </div>
           </motion.div>
-
         </div>
       </div>
     </div>
